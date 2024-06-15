@@ -86,6 +86,35 @@ def print_statistics():
     for port, count in sorted_ports:
         print(f"{port}: {count} packets")
 
+def dpi_http(packet):
+    if packet.haslayer(scapy.Raw):
+        payload = packet[scapy.Raw].load
+        if b"HTTP" in payload:
+            headers = payload.split(b"\r\n")
+            for header in headers:
+                print(header.decode('utf-8', errors='ignore'))
+
+
+        
+def dpi_dns(packet):
+    if packet.haslayer(scapy.DNS):
+        dns_layer = packet[scapy.DNS]
+        query_name = dns_layer.qd.qname.decode('utf-8')
+        if 'in-addr.arpa' in query_name:
+            ip_parts = query_name.split('.')[:-2]
+            ip_parts.reverse()
+            ip_address = '.'.join(ip_parts)
+            print(f"DNS Reverse Lookup Query: {query_name} (IP: {ip_address})")
+        else:
+            print(f"DNS Query: {query_name}")
+
+
+def dpi_ftp(packet):
+    if packet.haslayer(scapy.Raw):
+        payload = packet[scapy.Raw].load
+        if b"USER" in payload or b"PASS" in payload:
+            print(f"FTP Payload: {payload.decode('utf-8', errors='ignore')}")
+
 def packet_callback(packet):
     global total_packets, total_packet_size, start_time
 
@@ -116,11 +145,16 @@ def packet_callback(packet):
         src_port = packet[scapy.TCP].sport
         dst_port = packet[scapy.TCP].dport
         protocol_name = "TCP"
+        # DPI for HTTP and FTP
+        dpi_http(packet)
+        dpi_ftp(packet)
 
     elif packet.haslayer(scapy.UDP):
         src_port = packet[scapy.UDP].sport
         dst_port = packet[scapy.UDP].dport
         protocol_name = "UDP"
+        # DPI for DNS
+        dpi_dns(packet)
 
     else:
         protocol_name = "Unknown"
